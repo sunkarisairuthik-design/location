@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>LiveTrack | 3 Person Tracking</title>
+
+
+    <!-- LEAFLET -->
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    >
+
+
+    <!-- CSS -->
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+</head>
+
+
+<body>
+
+
+<header class="topbar">
+
+    <div class="logo">
+
+        📍 LiveTrack
+
+    </div>
+
+
+    <div class="connection-status">
+
+        <span
+            id="statusDot"
+            class="status-dot"
+        ></span>
+
+        <span id="statusText">
+            Not sharing
+        </span>
+
+    </div>
+
+</header>
+
+
+
+<main class="container">
+
+
+    <!-- =================================
+         USER PROFILE
+    ================================== -->
+
+    <section class="control-card">
+
+
+        <div class="user-profile">
+
+            <div
+                class="avatar"
+                id="avatar"
+            >
+                U
+            </div>
+
+
+            <div class="user-details">
+
+                <h2 id="userName">
+                    User
+                </h2>
+
+                <p>
+                    Live Location
+                </p>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="control-buttons">
+
+            <button
+                id="startBtn"
+                class="btn btn-start"
+            >
+                📍 Start Sharing
+            </button>
+
+
+            <button
+                id="stopBtn"
+                class="btn btn-stop"
+                disabled
+            >
+                🛑 Stop Sharing
+            </button>
+
+        </div>
+
+    </section>
+
+
+
+    <!-- =================================
+         USER NAME
+    ================================== -->
+
+    <section class="name-card">
+
+        <div>
+
+            <h3>
+                Your Name
+            </h3>
+
+            <p>
+                Choose the name shown to other people.
+            </p>
+
+        </div>
+
+
+        <div class="name-input-area">
+
+            <input
+                type="text"
+                id="nameInput"
+                placeholder="Enter your name"
+                maxlength="20"
+            >
+
+            <button
+                id="saveNameBtn"
+                class="save-btn"
+            >
+                Save
+            </button>
+
+        </div>
+
+    </section>
+
+
+
+    <!-- =================================
+         OTHER USERS
+    ================================== -->
+
+    <section class="people-card">
+
+        <div class="section-title">
+
+            <div>
+
+                <h2>
+                    People
+                </h2>
+
+                <p>
+                    Live tracking members
+                </p>
+
+            </div>
+
+
+            <div
+                id="peopleCount"
+                class="people-count"
+            >
+                0 online
+            </div>
+
+        </div>
+
+
+        <div
+            id="peopleList"
+            class="people-list"
+        >
+
+            <div class="empty-message">
+                No one is sharing their location.
+            </div>
+
+        </div>
+
+    </section>
+
+
+
+    <!-- =================================
+         LOCATION INFO
+    ================================== -->
+
+    <section class="location-grid">
+
+
+        <div class="info-card">
+
+            <div class="info-title">
+                Latitude
+            </div>
+
+            <div
+                id="latitude"
+                class="info-value"
+            >
+                --
+            </div>
+
+        </div>
+
+
+
+        <div class="info-card">
+
+            <div class="info-title">
+                Longitude
+            </div>
+
+            <div
+                id="longitude"
+                class="info-value"
+            >
+                --
+            </div>
+
+        </div>
+
+
+
+        <div class="info-card">
+
+            <div class="info-title">
+                Accuracy
+            </div>
+
+            <div
+                id="accuracy"
+                class="info-value"
+            >
+                --
+            </div>
+
+        </div>
+
+
+
+        <div class="info-card">
+
+            <div class="info-title">
+                Last Updated
+            </div>
+
+            <div
+                id="lastUpdated"
+                class="info-value"
+            >
+                --
+            </div>
+
+        </div>
+
+    </section>
+
+
+
+    <!-- =================================
+         MAP
+    ================================== -->
+
+    <section class="map-card">
+
+
+        <div class="map-header">
+
+            <div>
+
+                <h2>
+                    Live Map
+                </h2>
+
+                <p>
+                    Everyone currently sharing their location
+                </p>
+
+            </div>
+
+
+            <div class="live-label">
+
+                <span></span>
+
+                LIVE
+
+            </div>
+
+        </div>
+
+
+        <div id="map"></div>
+
+    </section>
+
+
+</main>
+
+
+
+<!-- LEAFLET -->
+
+<script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
+
+<script type="module" src="app.js"></script>
+
+</body>
+
+</html>
