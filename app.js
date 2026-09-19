@@ -1,10 +1,9 @@
-// ==========================================
-// LIVETRACK
-// ==========================================
+// ======================================================
+// LIVE LOCATION TRACKER
+// Firebase + Firestore + GPS + Leaflet
+// ======================================================
 
-import {
-    db
-} from "./firebase-config.js";
+import { db } from "./firebase-config.js";
 
 import {
     collection,
@@ -16,24 +15,111 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
-console.log("LiveTrack Firebase app loaded");
+// ======================================================
+// SETTINGS
+// ======================================================
+
+const LOCATION_COLLECTION = "liveLocations";
+
+const PROXIMITY_RADIUS = 1000; // 1 KM
+
+const DEFAULT_LOCATION = [
+    17.4065,
+    78.4772
+]; // Hyderabad
 
 
-// ==========================================
+// ======================================================
+// USER DATA
+// ======================================================
+
+let userId =
+    localStorage.getItem("liveTrackerUserId");
+
+if (!userId) {
+
+    userId =
+        "user_" +
+        Date.now() +
+        "_" +
+        Math.random()
+            .toString(36)
+            .substring(2, 9);
+
+    localStorage.setItem(
+        "liveTrackerUserId",
+        userId
+    );
+}
+
+
+let userName =
+    localStorage.getItem("liveTrackerUserName") || "";
+
+
+// ======================================================
+// STATE
+// ======================================================
+
+let watchId = null;
+
+let isSharing = false;
+
+let currentLocation = null;
+
+let map;
+
+let ownMarker = null;
+
+let markers = {};
+
+let peopleData = {};
+
+let proximityPairs = {};
+
+
+// ======================================================
 // ELEMENTS
-// ==========================================
+// ======================================================
 
-const startBtn =
-    document.getElementById("startBtn");
+const startSharing =
+    document.getElementById("startSharing");
 
-const stopBtn =
-    document.getElementById("stopBtn");
+const stopSharing =
+    document.getElementById("stopSharing");
+
+const userNameInput =
+    document.getElementById("userName");
+
+const saveName =
+    document.getElementById("saveName");
+
+const sidebarUserName =
+    document.getElementById("sidebarUserName");
+
+const userAvatar =
+    document.getElementById("userAvatar");
 
 const statusDot =
     document.getElementById("statusDot");
 
 const statusText =
     document.getElementById("statusText");
+
+const headerStatusDot =
+    document.getElementById("headerStatusDot");
+
+const headerStatus =
+    document.getElementById("headerStatus");
+
+const onlineCount =
+    document.getElementById("onlineCount");
+
+const peopleList =
+    document.getElementById("peopleList");
+
+const mapPeopleCount =
+    document.getElementById("mapPeopleCount");
 
 const latitudeElement =
     document.getElementById("latitude");
@@ -47,332 +133,361 @@ const accuracyElement =
 const lastUpdatedElement =
     document.getElementById("lastUpdated");
 
-const nameInput =
-    document.getElementById("nameInput");
+const gpsStatus =
+    document.getElementById("gpsStatus");
 
-const saveNameBtn =
-    document.getElementById("saveNameBtn");
+const mapLocationText =
+    document.getElementById("mapLocationText");
 
-const userNameElement =
-    document.getElementById("userName");
+const recenterBtn =
+    document.getElementById("recenterBtn");
 
-const avatarElement =
-    document.getElementById("avatar");
+const fullscreenBtn =
+    document.getElementById("fullscreenBtn");
 
-const peopleList =
-    document.getElementById("peopleList");
+const alertPanel =
+    document.getElementById("alertPanel");
 
-const peopleCount =
-    document.getElementById("peopleCount");
+const alertTitle =
+    document.getElementById("alertTitle");
+
+const alertMessage =
+    document.getElementById("alertMessage");
+
+const mobileMenu =
+    document.getElementById("mobileMenu");
+
+const sidebar =
+    document.querySelector(".sidebar");
+
+const sidebarOverlay =
+    document.getElementById("sidebarOverlay");
 
 
-// ==========================================
-// USER ID
-// ==========================================
+// ======================================================
+// INITIAL PROFILE
+// ======================================================
 
-let userId =
-    localStorage.getItem("liveTrackUserId");
-
-
-if (!userId) {
-
-    userId =
-        "user_" +
-        Date.now() +
-        "_" +
-        Math.random()
-            .toString(36)
-            .substring(2, 8);
-
-    localStorage.setItem(
-        "liveTrackUserId",
-        userId
-    );
-
+if (userNameInput) {
+    userNameInput.value = userName;
 }
 
-
-// ==========================================
-// USER NAME
-// ==========================================
-
-let userName =
-    localStorage.getItem(
-        "liveTrackUserName"
-    );
+updateProfileUI();
 
 
-if (!userName) {
+// ======================================================
+// INITIALIZE MAP
+// ======================================================
 
-    userName = "User";
-
-}
-
-
-userNameElement.textContent =
-    userName;
-
-nameInput.value =
-    userName;
-
-avatarElement.textContent =
-    userName
-        .charAt(0)
-        .toUpperCase();
-
-
-// ==========================================
-// MAP
-// ==========================================
-
-const map =
-    L.map("map").setView(
-        [17.4065, 78.4772],
-        13
-    );
+map = L.map("map", {
+    zoomControl: false
+}).setView(
+    DEFAULT_LOCATION,
+    13
+);
 
 
 L.tileLayer(
     "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     {
         maxZoom: 19,
-
         attribution:
-            "&copy; OpenStreetMap contributors"
+            '&copy; OpenStreetMap contributors'
     }
 ).addTo(map);
 
 
-setTimeout(function () {
+// ======================================================
+// CUSTOM MARKER ICONS
+// ======================================================
 
-    map.invalidateSize();
+function createMarkerIcon(
+    isOwn,
+    name = ""
+) {
 
-}, 500);
-
-
-// ==========================================
-// MARKERS
-// ==========================================
-
-const markers = {};
-
-
-// ==========================================
-// SAVE NAME
-// ==========================================
-
-saveNameBtn.addEventListener(
-    "click",
-    saveName
-);
-
-
-function saveName() {
-
-    const newName =
-        nameInput.value.trim();
-
-
-    if (!newName) {
-
-        alert(
-            "Please enter your name."
+    const firstLetter =
+        escapeHtml(
+            name
+                ? name.charAt(0).toUpperCase()
+                : "?"
         );
 
-        return;
+    const className =
+        isOwn
+            ? "user-marker"
+            : "other-marker";
 
-    }
+    return L.divIcon({
 
+        className: "",
 
-    userName =
-        newName;
+        html: `
+            <div class="${className}">
+                ${firstLetter}
+            </div>
+        `,
 
+        iconSize: [40, 40],
 
-    localStorage.setItem(
-        "liveTrackUserName",
-        userName
-    );
+        iconAnchor: [20, 20],
 
-
-    userNameElement.textContent =
-        userName;
-
-
-    avatarElement.textContent =
-        userName
-            .charAt(0)
-            .toUpperCase();
-
-
-    alert(
-        "Name saved successfully."
-    );
-
+        popupAnchor: [0, -22]
+    });
 }
 
 
-// ==========================================
-// START SHARING
-// ==========================================
+// ======================================================
+// SAVE NAME
+// ======================================================
 
-startBtn.addEventListener(
+saveName.addEventListener(
     "click",
-    startSharing
+    saveUserName
 );
 
 
-function startSharing() {
+userNameInput.addEventListener(
+    "keydown",
+    function (event) {
+
+        if (event.key === "Enter") {
+            saveUserName();
+        }
+
+    }
+);
+
+
+function saveUserName() {
+
+    const name =
+        userNameInput.value.trim();
+
+    if (!name) {
+
+        alert(
+            "Please enter your name first."
+        );
+
+        userNameInput.focus();
+
+        return;
+    }
+
+    userName = name;
+
+    localStorage.setItem(
+        "liveTrackerUserName",
+        userName
+    );
+
+    updateProfileUI();
+
+    if (isSharing && currentLocation) {
+
+        updateOwnLocation(
+            currentLocation.latitude,
+            currentLocation.longitude,
+            currentLocation.accuracy
+        );
+
+    }
+
+    showToast(
+        "Profile name saved"
+    );
+}
+
+
+// ======================================================
+// PROFILE UI
+// ======================================================
+
+function updateProfileUI() {
+
+    const displayName =
+        userName || "Your Location";
+
+    sidebarUserName.textContent =
+        displayName;
+
+    const firstLetter =
+        displayName
+            .charAt(0)
+            .toUpperCase();
+
+    userAvatar.textContent =
+        firstLetter;
+}
+
+
+// ======================================================
+// START SHARING
+// ======================================================
+
+startSharing.addEventListener(
+    "click",
+    startLocationSharing
+);
+
+
+function startLocationSharing() {
 
     if (!navigator.geolocation) {
 
         alert(
-            "Geolocation is not supported by this browser."
+            "Your browser does not support GPS location."
         );
 
         return;
-
     }
 
 
-    startBtn.disabled = true;
+    if (!userName) {
 
-    stopBtn.disabled = false;
+        alert(
+            "Please enter your name before starting location sharing."
+        );
+
+        userNameInput.focus();
+
+        return;
+    }
 
 
-    statusText.textContent =
-        "Requesting location...";
+    if (isSharing) {
+        return;
+    }
 
-    statusDot.style.background =
-        "orange";
+
+    setSharingUI(true);
+
+    setGPSStatus(
+        "Locating..."
+    );
 
 
     navigator.geolocation.getCurrentPosition(
 
         function (position) {
 
+            const {
+                latitude,
+                longitude,
+                accuracy
+            } = position.coords;
+
+
+            currentLocation = {
+                latitude,
+                longitude,
+                accuracy
+            };
+
+
             updateOwnLocation(
-                position
+                latitude,
+                longitude,
+                accuracy
             );
 
 
-            startWatching();
-
-        },
-
-
-        function (error) {
-
-            handleLocationError(
-                error
+            centerMap(
+                latitude,
+                longitude,
+                15
             );
 
+
+            watchId =
+                navigator.geolocation.watchPosition(
+
+                    function (newPosition) {
+
+                        const {
+                            latitude,
+                            longitude,
+                            accuracy
+                        } =
+                            newPosition.coords;
+
+
+                        currentLocation = {
+                            latitude,
+                            longitude,
+                            accuracy
+                        };
+
+
+                        updateOwnLocation(
+                            latitude,
+                            longitude,
+                            accuracy
+                        );
+
+                    },
+
+                    handleLocationError,
+
+                    {
+                        enableHighAccuracy: true,
+
+                        maximumAge: 3000,
+
+                        timeout: 15000
+                    }
+                );
+
         },
+
+        handleLocationError,
 
         {
-
             enableHighAccuracy: true,
 
-            timeout: 30000,
+            maximumAge: 0,
 
-            maximumAge: 0
-
+            timeout: 15000
         }
-
     );
-
 }
 
 
-// ==========================================
-// CONTINUOUS GPS
-// ==========================================
+// ======================================================
+// UPDATE OWN LOCATION
+// ======================================================
 
-function startWatching() {
+async function updateOwnLocation(
+    latitude,
+    longitude,
+    accuracy
+) {
 
-    if (window.liveTrackWatchId) {
-
+    if (!isSharing) {
         return;
-
     }
 
 
-    window.liveTrackWatchId =
-        navigator.geolocation.watchPosition(
-
-            function (position) {
-
-                updateOwnLocation(
-                    position
-                );
-
-            },
+    currentLocation = {
+        latitude,
+        longitude,
+        accuracy
+    };
 
 
-            function (error) {
-
-                handleLocationError(
-                    error
-                );
-
-            },
+    updateOwnUI(
+        latitude,
+        longitude,
+        accuracy
+    );
 
 
-            {
+    updateOwnMarker(
+        latitude,
+        longitude
+    );
 
-                enableHighAccuracy: true,
-
-                timeout: 30000,
-
-                maximumAge: 5000
-
-            }
-
-        );
-
-}
-
-
-// ==========================================
-// UPDATE OWN LOCATION
-// ==========================================
-
-async function updateOwnLocation(
-    position
-) {
-
-    const latitude =
-        position.coords.latitude;
-
-    const longitude =
-        position.coords.longitude;
-
-    const accuracy =
-        position.coords.accuracy;
-
-
-    latitudeElement.textContent =
-        latitude.toFixed(6);
-
-    longitudeElement.textContent =
-        longitude.toFixed(6);
-
-    accuracyElement.textContent =
-        Math.round(accuracy) + " m";
-
-    lastUpdatedElement.textContent =
-        new Date().toLocaleTimeString();
-
-
-    statusText.textContent =
-        "Location sharing active";
-
-    statusDot.style.background =
-        "green";
-
-
-    // ======================================
-    // FIRESTORE
-    // ======================================
 
     try {
 
@@ -380,29 +495,23 @@ async function updateOwnLocation(
 
             doc(
                 db,
-                "liveLocations",
+                LOCATION_COLLECTION,
                 userId
             ),
 
             {
 
-                userId:
-                    userId,
+                userId: userId,
 
-                name:
-                    userName,
+                name: userName,
 
-                latitude:
-                    latitude,
+                latitude: latitude,
 
-                longitude:
-                    longitude,
+                longitude: longitude,
 
-                accuracy:
-                    accuracy,
+                accuracy: accuracy,
 
-                sharing:
-                    true,
+                sharing: true,
 
                 updatedAt:
                     serverTimestamp()
@@ -415,82 +524,157 @@ async function updateOwnLocation(
 
         );
 
-
-        console.log(
-            "Location uploaded to Firebase"
-        );
+        setGPSStatus("Active");
 
     }
 
     catch (error) {
 
         console.error(
-            "Firebase error:",
+            "Firebase location error:",
             error
         );
 
-        statusText.textContent =
-            "Firebase error";
+        setGPSStatus(
+            "Firebase error"
+        );
+
+        showToast(
+            "Could not update Firebase"
+        );
 
     }
-
 }
 
 
-// ==========================================
-// STOP SHARING
-// ==========================================
+// ======================================================
+// UPDATE OWN UI
+// ======================================================
 
-stopBtn.addEventListener(
-    "click",
-    stopSharing
-);
+function updateOwnUI(
+    latitude,
+    longitude,
+    accuracy
+) {
 
+    latitudeElement.textContent =
+        latitude.toFixed(6);
 
-async function stopSharing() {
+    longitudeElement.textContent =
+        longitude.toFixed(6);
 
-    if (
-        window.liveTrackWatchId
-    ) {
+    accuracyElement.textContent =
+        Math.round(accuracy);
 
-        navigator.geolocation.clearWatch(
-            window.liveTrackWatchId
+    lastUpdatedElement.textContent =
+        formatTime(
+            new Date()
         );
 
-        window.liveTrackWatchId =
-            null;
+    mapLocationText.textContent =
+        `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+}
+
+
+// ======================================================
+// UPDATE OWN MARKER
+// ======================================================
+
+function updateOwnMarker(
+    latitude,
+    longitude
+) {
+
+    const position = [
+        latitude,
+        longitude
+    ];
+
+
+    if (!ownMarker) {
+
+        ownMarker =
+            L.marker(
+                position,
+                {
+                    icon:
+                        createMarkerIcon(
+                            true,
+                            userName
+                        )
+                }
+            ).addTo(map);
+
+
+        ownMarker.bindPopup(
+            `
+            <strong>
+                ${escapeHtml(userName)}
+            </strong>
+            <br>
+            <span>
+                Your live location
+            </span>
+            `
+        );
 
     }
 
+    else {
 
-    startBtn.disabled = false;
+        ownMarker.setLatLng(
+            position
+        );
 
-    stopBtn.disabled = true;
+        ownMarker.setIcon(
+            createMarkerIcon(
+                true,
+                userName
+            )
+        );
+
+    }
+}
 
 
-    statusText.textContent =
-        "Location sharing stopped";
+// ======================================================
+// STOP SHARING
+// ======================================================
 
-    statusDot.style.background =
-        "gray";
+stopSharing.addEventListener(
+    "click",
+    stopLocationSharing
+);
 
 
-    // Remove own location
+async function stopLocationSharing() {
+
+    if (!isSharing) {
+        return;
+    }
+
+
+    isSharing = false;
+
+
+    if (watchId !== null) {
+
+        navigator.geolocation.clearWatch(
+            watchId
+        );
+
+        watchId = null;
+    }
+
 
     try {
 
         await deleteDoc(
-
             doc(
                 db,
-                "liveLocations",
+                LOCATION_COLLECTION,
                 userId
             )
-
-        );
-
-        console.log(
-            "Location removed from Firebase"
         );
 
     }
@@ -498,22 +682,123 @@ async function stopSharing() {
     catch (error) {
 
         console.error(
+            "Error removing location:",
             error
         );
 
     }
 
+
+    if (ownMarker) {
+
+        map.removeLayer(
+            ownMarker
+        );
+
+        ownMarker = null;
+    }
+
+
+    setSharingUI(false);
+
+    setGPSStatus(
+        "Stopped"
+    );
+
+    latitudeElement.textContent = "—";
+
+    longitudeElement.textContent = "—";
+
+    accuracyElement.textContent = "—";
+
+    lastUpdatedElement.textContent = "—";
+
+    mapLocationText.textContent =
+        "Location sharing stopped";
+
+    showToast(
+        "Location sharing stopped"
+    );
 }
 
 
-// ==========================================
-// LISTEN TO ALL USERS
-// ==========================================
+// ======================================================
+// SHARING UI
+// ======================================================
+
+function setSharingUI(active) {
+
+    isSharing = active;
+
+
+    if (active) {
+
+        startSharing.style.display =
+            "none";
+
+        stopSharing.style.display =
+            "block";
+
+        statusDot.classList.add(
+            "active"
+        );
+
+        statusText.textContent =
+            "Sharing live";
+
+        headerStatusDot.classList.add(
+            "active"
+        );
+
+        headerStatus.textContent =
+            "Live";
+
+    }
+
+    else {
+
+        startSharing.style.display =
+            "block";
+
+        stopSharing.style.display =
+            "none";
+
+        statusDot.classList.remove(
+            "active"
+        );
+
+        statusText.textContent =
+            "Not sharing";
+
+        headerStatusDot.classList.remove(
+            "active"
+        );
+
+        headerStatus.textContent =
+            "Offline";
+    }
+}
+
+
+// ======================================================
+// GPS STATUS
+// ======================================================
+
+function setGPSStatus(status) {
+
+    gpsStatus.textContent =
+        status;
+}
+
+
+// ======================================================
+// FIRESTORE REAL-TIME LISTENER
+// ======================================================
 
 const locationsRef =
     collection(
         db,
-        "liveLocations"
+        LOCATION_COLLECTION
     );
 
 
@@ -523,7 +808,7 @@ onSnapshot(
 
     function (snapshot) {
 
-        const users = [];
+        peopleData = {};
 
 
         snapshot.forEach(
@@ -532,18 +817,29 @@ onSnapshot(
                 const data =
                     docSnapshot.data();
 
-                users.push(data);
+
+                if (
+                    data.sharing !== true
+                ) {
+                    return;
+                }
+
+
+                peopleData[
+                    docSnapshot.id
+                ] = data;
 
             }
         );
 
 
-        displayUsers(users);
+        displayUsers();
 
-        updateMarkers(users);
+        updateMarkers();
+
+        checkProximity();
 
     },
-
 
     function (error) {
 
@@ -552,281 +848,1131 @@ onSnapshot(
             error
         );
 
-        peopleList.innerHTML =
-            "<div class='empty-message'>" +
-            "Unable to load live users." +
-            "</div>";
+        headerStatus.textContent =
+            "Connection error";
 
+        showToast(
+            "Could not connect to Firebase"
+        );
     }
-
 );
 
 
-// ==========================================
+// ======================================================
 // DISPLAY USERS
-// ==========================================
+// ======================================================
 
-function displayUsers(users) {
+function displayUsers() {
+
+    const users =
+        Object.values(
+            peopleData
+        );
+
+
+    onlineCount.textContent =
+        `${users.length} online`;
+
+
+    mapPeopleCount.textContent =
+        `${users.length} ${
+            users.length === 1
+                ? "person"
+                : "people"
+        }`;
+
 
     if (users.length === 0) {
 
-        peopleList.innerHTML =
-            "<div class='empty-message'>" +
-            "No one is sharing their location." +
-            "</div>";
+        peopleList.innerHTML = `
 
-        peopleCount.textContent =
-            "0 online";
+            <div class="empty-people">
+
+                <div class="empty-icon">
+                    👥
+                </div>
+
+                <strong>
+                    No one is sharing
+                </strong>
+
+                <span>
+                    Start sharing your location
+                </span>
+
+            </div>
+
+        `;
 
         return;
-
     }
 
 
-    peopleList.innerHTML = "";
+    const sortedUsers =
+        [...users].sort(
+            function (a, b) {
+
+                if (
+                    a.userId === userId
+                ) return -1;
+
+                if (
+                    b.userId === userId
+                ) return 1;
+
+                return 0;
+            }
+        );
 
 
-    let onlineCount = 0;
-
-
-    users.forEach(
-        function (user) {
-
-            onlineCount++;
-
-
-            const item =
-                document.createElement(
-                    "div"
-                );
-
-
-            item.className =
-                "person-item";
-
-
-            const initial =
-                user.name
-                    ? user.name
-                        .charAt(0)
-                        .toUpperCase()
-                    : "U";
-
-
-            item.innerHTML =
-
-                "<div class='person-avatar'>" +
-
-                    initial +
-
-                "</div>" +
-
-                "<div class='person-info'>" +
-
-                    "<strong>" +
-
-                        escapeHtml(
-                            user.name || "User"
-                        ) +
-
-                    "</strong>" +
-
-                    "<span>" +
-
-                        "● Sharing location" +
-
-                    "</span>" +
-
-                "</div>";
-
-
-            peopleList.appendChild(
-                item
-            );
-
-        }
-    );
-
-
-    peopleCount.textContent =
-        onlineCount + " online";
-
+    peopleList.innerHTML =
+        sortedUsers
+            .map(
+                createPersonHTML
+            )
+            .join("");
 }
 
 
-// ==========================================
+// ======================================================
+// CREATE PERSON HTML
+// ======================================================
+
+function createPersonHTML(
+    person
+) {
+
+    const isOwn =
+        person.userId === userId;
+
+
+    let distanceText =
+        "You";
+
+
+    if (
+        !isOwn &&
+        currentLocation &&
+        isValidCoordinates(person)
+    ) {
+
+        const distance =
+            calculateDistance(
+
+                currentLocation.latitude,
+
+                currentLocation.longitude,
+
+                person.latitude,
+
+                person.longitude
+
+            );
+
+
+        distanceText =
+            formatDistance(
+                distance
+            );
+    }
+
+
+    const name =
+        person.name ||
+        "Unknown";
+
+
+    const letter =
+        name
+            .charAt(0)
+            .toUpperCase();
+
+
+    return `
+
+        <div class="person-item">
+
+            <div class="person-avatar">
+                ${escapeHtml(letter)}
+            </div>
+
+            <div class="person-info">
+
+                <span class="person-name">
+
+                    ${escapeHtml(name)}
+
+                    ${
+                        isOwn
+                            ? " (You)"
+                            : ""
+                    }
+
+                </span>
+
+                <div class="person-meta">
+
+                    <i class="person-dot"></i>
+
+                    <span>
+                        ${
+                            isOwn
+                                ? "Sharing your location"
+                                : "Live location"
+                        }
+                    </span>
+
+                </div>
+
+            </div>
+
+            <div class="person-distance">
+                ${distanceText}
+            </div>
+
+        </div>
+
+    `;
+}
+
+
+// ======================================================
 // UPDATE MAP MARKERS
-// ==========================================
+// ======================================================
 
-function updateMarkers(users) {
+function updateMarkers() {
 
-    const activeIds = {};
-
-
-    users.forEach(
-        function (user) {
-
-            if (
-                !user.latitude ||
-                !user.longitude
-            ) {
-
-                return;
-
-            }
+    const activeIds =
+        new Set(
+            Object.keys(
+                peopleData
+            )
+        );
 
 
-            activeIds[user.userId] =
-                true;
-
-
-            const position = [
-
-                user.latitude,
-
-                user.longitude
-
-            ];
-
-
-            // Create marker
-
-            if (
-                !markers[user.userId]
-            ) {
-
-                markers[user.userId] =
-                    L.marker(
-                        position
-                    )
-                    .addTo(map);
-
-            }
-
-
-            // Move marker
-
-            markers[user.userId]
-                .setLatLng(position);
-
-
-            // Popup
-
-            markers[user.userId]
-                .bindPopup(
-
-                    "<strong>" +
-
-                    escapeHtml(
-                        user.name || "User"
-                    ) +
-
-                    "</strong><br>" +
-
-                    "📍 Live location"
-
-                );
-
-        }
-    );
-
-
-    // ======================================
-    // REMOVE OLD MARKERS
-    // ======================================
+    // Remove old markers
 
     Object.keys(markers)
         .forEach(
             function (id) {
 
-                if (!activeIds[id]) {
+                if (
+                    !activeIds.has(id)
+                ) {
 
                     map.removeLayer(
                         markers[id]
                     );
 
                     delete markers[id];
-
                 }
 
             }
         );
 
+
+    // Create/update markers
+
+    Object.entries(
+        peopleData
+    )
+    .forEach(
+        function ([id, person]) {
+
+            if (
+                id === userId
+            ) {
+                return;
+            }
+
+
+            if (
+                !isValidCoordinates(person)
+            ) {
+                return;
+            }
+
+
+            const position = [
+
+                person.latitude,
+
+                person.longitude
+
+            ];
+
+
+            if (!markers[id]) {
+
+                markers[id] =
+                    L.marker(
+
+                        position,
+
+                        {
+                            icon:
+                                createMarkerIcon(
+                                    false,
+                                    person.name
+                                )
+                        }
+
+                    ).addTo(map);
+
+
+                markers[id].bindPopup(
+                    createPopupHTML(
+                        person
+                    )
+                );
+
+            }
+
+            else {
+
+                markers[id].setLatLng(
+                    position
+                );
+
+                markers[id].setIcon(
+                    createMarkerIcon(
+                        false,
+                        person.name
+                    )
+                );
+
+                markers[id].setPopupContent(
+                    createPopupHTML(
+                        person
+                    )
+                );
+
+            }
+
+        }
+    );
 }
 
 
-// ==========================================
-// ERROR HANDLING
-// ==========================================
+// ======================================================
+// POPUP
+// ======================================================
 
-function handleLocationError(error) {
+function createPopupHTML(
+    person
+) {
 
-    startBtn.disabled = false;
-
-    stopBtn.disabled = true;
-
-
-    statusDot.style.background =
-        "red";
-
-
-    if (error.code === 1) {
-
-        statusText.textContent =
-            "Location permission denied";
-
-        alert(
-            "Please allow location access in your browser."
+    const name =
+        escapeHtml(
+            person.name ||
+            "Unknown"
         );
 
+
+    let distanceHTML = "";
+
+
+    if (
+        currentLocation &&
+        isValidCoordinates(person)
+    ) {
+
+        const distance =
+            calculateDistance(
+
+                currentLocation.latitude,
+
+                currentLocation.longitude,
+
+                person.latitude,
+
+                person.longitude
+
+            );
+
+
+        distanceHTML = `
+            <br>
+            <strong>
+                Distance:
+            </strong>
+            ${formatDistance(distance)}
+        `;
     }
 
-    else if (error.code === 2) {
 
-        statusText.textContent =
-            "Location unavailable";
+    return `
 
-        alert(
-            "Your device could not determine your location."
+        <div style="
+            min-width:160px;
+            line-height:1.5;
+        ">
+
+            <strong>
+                ${name}
+            </strong>
+
+            <br>
+
+            <span>
+                ● Live location
+            </span>
+
+            ${distanceHTML}
+
+        </div>
+
+    `;
+}
+
+
+// ======================================================
+// PROXIMITY CHECK
+// ======================================================
+
+function checkProximity() {
+
+    if (!currentLocation) {
+        return;
+    }
+
+
+    const users =
+        Object.values(
+            peopleData
         );
 
-    }
 
-    else if (error.code === 3) {
+    let nearbyPeople = [];
 
-        statusText.textContent =
-            "GPS timeout";
 
-        alert(
-            "GPS request timed out. Please try again."
+    users.forEach(
+        function (person) {
+
+            if (
+                person.userId === userId
+            ) {
+                return;
+            }
+
+
+            if (
+                !isValidCoordinates(person)
+            ) {
+                return;
+            }
+
+
+            const distance =
+                calculateDistance(
+
+                    currentLocation.latitude,
+
+                    currentLocation.longitude,
+
+                    person.latitude,
+
+                    person.longitude
+
+                );
+
+
+            const pairKey =
+                createPairKey(
+                    userId,
+                    person.userId
+                );
+
+
+            if (
+                distance <=
+                PROXIMITY_RADIUS
+            ) {
+
+                nearbyPeople.push({
+                    name:
+                        person.name ||
+                        "Someone",
+
+                    distance:
+                        distance
+                });
+
+
+                if (
+                    !proximityPairs[pairKey]
+                ) {
+
+                    proximityPairs[pairKey] =
+                        true;
+
+
+                    triggerProximityAlert(
+
+                        person.name ||
+                        "Someone",
+
+                        distance
+                    );
+                }
+
+            }
+
+            else {
+
+                // Reset the alert once
+                // the person moves outside 1 km
+
+                delete proximityPairs[
+                    pairKey
+                ];
+            }
+
+        }
+    );
+
+
+    if (
+        nearbyPeople.length > 0
+    ) {
+
+        showNearbyPanel(
+            nearbyPeople
         );
 
     }
 
     else {
 
-        statusText.textContent =
-            "GPS error";
+        showNormalAlertPanel();
+    }
+}
+
+
+// ======================================================
+// PROXIMITY ALERT
+// ======================================================
+
+function triggerProximityAlert(
+    name,
+    distance
+) {
+
+    const formatted =
+        formatDistance(
+            distance
+        );
+
+
+    alertTitle.textContent =
+        `${name} is nearby`;
+
+
+    alertMessage.textContent =
+        `${name} is approximately ${formatted} away from you.`;
+
+
+    alertPanel.classList.add(
+        "warning"
+    );
+
+
+    // Browser alert
+
+    alert(
+        `⚠ PROXIMITY ALERT\n\n` +
+        `${name} is ${formatted} away from you.\n\n` +
+        `They are within 1 km.`
+    );
+
+
+    // Optional vibration
+
+    if (
+        navigator.vibrate
+    ) {
+
+        navigator.vibrate([
+            250,
+            100,
+            250
+        ]);
+    }
+}
+
+
+// ======================================================
+// NEARBY PANEL
+// ======================================================
+
+function showNearbyPanel(
+    nearbyPeople
+) {
+
+    alertPanel.classList.add(
+        "warning"
+    );
+
+
+    if (
+        nearbyPeople.length === 1
+    ) {
+
+        const person =
+            nearbyPeople[0];
+
+
+        alertTitle.textContent =
+            `${person.name} is within 1 km`;
+
+
+        alertMessage.textContent =
+            `${person.name} is ${formatDistance(
+                person.distance
+            )} away from you.`;
 
     }
 
+    else {
+
+        alertTitle.textContent =
+            `${nearbyPeople.length} people are within 1 km`;
+
+
+        alertMessage.textContent =
+            nearbyPeople
+                .map(
+                    person =>
+                        `${person.name}: ${formatDistance(
+                            person.distance
+                        )}`
+                )
+                .join(" • ");
+
+    }
 }
 
 
-// ==========================================
-// ESCAPE HTML
-// ==========================================
+// ======================================================
+// NORMAL ALERT PANEL
+// ======================================================
 
-function escapeHtml(text) {
+function showNormalAlertPanel() {
 
-    const div =
-        document.createElement(
-            "div"
+    alertPanel.classList.remove(
+        "warning"
+    );
+
+
+    alertTitle.textContent =
+        "Proximity monitoring active";
+
+
+    alertMessage.textContent =
+        "You will receive an alert when another person comes within 1 km.";
+}
+
+
+// ======================================================
+// DISTANCE CALCULATION
+// ======================================================
+
+function calculateDistance(
+    lat1,
+    lon1,
+    lat2,
+    lon2
+) {
+
+    const earthRadius =
+        6371000;
+
+
+    const latitudeDifference =
+        toRadians(
+            lat2 - lat1
         );
 
-    div.textContent =
-        text;
 
-    return div.innerHTML;
+    const longitudeDifference =
+        toRadians(
+            lon2 - lon1
+        );
 
+
+    const a =
+        Math.sin(
+            latitudeDifference / 2
+        ) ** 2 +
+
+        Math.cos(
+            toRadians(lat1)
+        ) *
+
+        Math.cos(
+            toRadians(lat2)
+        ) *
+
+        Math.sin(
+            longitudeDifference / 2
+        ) ** 2;
+
+
+    const c =
+        2 *
+        Math.atan2(
+            Math.sqrt(a),
+            Math.sqrt(1 - a)
+        );
+
+
+    return earthRadius * c;
 }
+
+
+function toRadians(
+    degrees
+) {
+
+    return degrees *
+        Math.PI /
+        180;
+}
+
+
+// ======================================================
+// FORMAT DISTANCE
+// ======================================================
+
+function formatDistance(
+    meters
+) {
+
+    if (
+        meters < 1000
+    ) {
+
+        return `${Math.round(meters)} m`;
+
+    }
+
+
+    return `${(
+        meters / 1000
+    ).toFixed(2)} km`;
+}
+
+
+// ======================================================
+// VALIDATE COORDINATES
+// ======================================================
+
+function isValidCoordinates(
+    person
+) {
+
+    return (
+
+        typeof person.latitude ===
+        "number"
+
+        &&
+
+        typeof person.longitude ===
+        "number"
+
+        &&
+
+        Number.isFinite(
+            person.latitude
+        )
+
+        &&
+
+        Number.isFinite(
+            person.longitude
+        )
+
+    );
+}
+
+
+// ======================================================
+// CENTER MAP
+// ======================================================
+
+function centerMap(
+    latitude,
+    longitude,
+    zoom = 15
+) {
+
+    map.setView(
+        [
+            latitude,
+            longitude
+        ],
+        zoom,
+        {
+            animate: true
+        }
+    );
+}
+
+
+// ======================================================
+// RECENTER BUTTON
+// ======================================================
+
+recenterBtn.addEventListener(
+    "click",
+    function () {
+
+        if (
+            currentLocation
+        ) {
+
+            centerMap(
+
+                currentLocation.latitude,
+
+                currentLocation.longitude,
+
+                16
+
+            );
+
+        }
+
+        else {
+
+            showToast(
+                "Your location is not available yet."
+            );
+        }
+
+    }
+);
+
+
+// ======================================================
+// FULLSCREEN MAP
+// ======================================================
+
+fullscreenBtn.addEventListener(
+    "click",
+    function () {
+
+        const mapContainer =
+            document.querySelector(
+                ".map-container"
+            );
+
+
+        if (
+            !document.fullscreenElement
+        ) {
+
+            if (
+                mapContainer.requestFullscreen
+            ) {
+
+                mapContainer.requestFullscreen();
+
+            }
+
+        }
+
+        else {
+
+            document.exitFullscreen();
+
+        }
+
+    }
+);
+
+
+// ======================================================
+// MOBILE MENU
+// ======================================================
+
+mobileMenu.addEventListener(
+    "click",
+    function () {
+
+        sidebar.classList.add(
+            "open"
+        );
+
+        sidebarOverlay.classList.add(
+            "open"
+        );
+
+    }
+);
+
+
+sidebarOverlay.addEventListener(
+    "click",
+    closeMobileSidebar
+);
+
+
+function closeMobileSidebar() {
+
+    sidebar.classList.remove(
+        "open"
+    );
+
+    sidebarOverlay.classList.remove(
+        "open"
+    );
+}
+
+
+// ======================================================
+// GEOLOCATION ERROR
+// ======================================================
+
+function handleLocationError(
+    error
+) {
+
+    console.error(
+        "GPS error:",
+        error
+    );
+
+
+    setGPSStatus(
+        "GPS error"
+    );
+
+
+    if (
+        error.code ===
+        error.PERMISSION_DENIED
+    ) {
+
+        showToast(
+            "Location permission was denied. Please allow location access in your browser."
+        );
+
+    }
+
+    else if (
+        error.code ===
+        error.POSITION_UNAVAILABLE
+    ) {
+
+        showToast(
+            "GPS location is currently unavailable."
+        );
+
+    }
+
+    else if (
+        error.code ===
+        error.TIMEOUT
+    ) {
+
+        showToast(
+            "GPS request timed out. Trying again..."
+        );
+
+    }
+
+    else {
+
+        showToast(
+            "Unable to get your location."
+        );
+
+    }
+
+
+    setSharingUI(false);
+}
+
+
+// ======================================================
+// TIME FORMAT
+// ======================================================
+
+function formatTime(
+    date
+) {
+
+    return date.toLocaleTimeString(
+        [],
+        {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit"
+        }
+    );
+}
+
+
+// ======================================================
+// PAIR KEY
+// ======================================================
+
+function createPairKey(
+    id1,
+    id2
+) {
+
+    return [
+        id1,
+        id2
+    ]
+        .sort()
+        .join("_");
+}
+
+
+// ======================================================
+// HTML ESCAPE
+// ======================================================
+
+function escapeHtml(
+    value
+) {
+
+    return String(value)
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+        .replace(
+            /</g,
+            "&lt;"
+        )
+        .replace(
+            />/g,
+            "&gt;"
+        )
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+        .replace(
+            /'/g,
+            "&#039;"
+        );
+}
+
+
+// ======================================================
+// TOAST
+// ======================================================
+
+function showToast(
+    message
+) {
+
+    let toast =
+        document.getElementById(
+            "liveTrackerToast"
+        );
+
+
+    if (!toast) {
+
+        toast =
+            document.createElement(
+                "div"
+            );
+
+        toast.id =
+            "liveTrackerToast";
+
+
+        toast.style.position =
+            "fixed";
+
+        toast.style.left =
+            "50%";
+
+        toast.style.bottom =
+            "25px";
+
+        toast.style.transform =
+            "translateX(-50%)";
+
+        toast.style.background =
+            "#111827";
+
+        toast.style.color =
+            "white";
+
+        toast.style.padding =
+            "11px 16px";
+
+        toast.style.borderRadius =
+            "10px";
+
+        toast.style.fontSize =
+            "12px";
+
+        toast.style.fontWeight =
+            "600";
+
+        toast.style.zIndex =
+            "9999";
+
+        toast.style.boxShadow =
+            "0 8px 25px rgba(0,0,0,.2)";
+
+        toast.style.maxWidth =
+            "calc(100% - 30px)";
+
+        toast.style.textAlign =
+            "center";
+
+
+        document.body.appendChild(
+            toast
+        );
+    }
+
+
+    toast.textContent =
+        message;
+
+
+    clearTimeout(
+        toast._timer
+    );
+
+
+    toast.style.opacity =
+        "1";
+
+
+    toast._timer =
+        setTimeout(
+            function () {
+
+                toast.style.opacity =
+                    "0";
+
+            },
+            3000
+        );
+}
+
+
+// ======================================================
+// INITIAL FIREBASE STATUS
+// ======================================================
+
+headerStatus.textContent =
+    "Connected";
+
+
+// ======================================================
+// END
+// ======================================================
