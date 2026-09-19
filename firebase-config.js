@@ -1,7 +1,3 @@
-// ==========================================
-// FIREBASE CONFIGURATION
-// ==========================================
-
 import {
     initializeApp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -11,13 +7,10 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
-// ==========================================
-// YOUR FIREBASE CONFIG
-// ==========================================
-
 const firebaseConfig = {
 
-    apiKey: "AIzaSyBTLPq7rWF60oojU4EKfVAHlxYf2kfFHi0",
+    apiKey:
+        "AIzaSyBTLPq7rWF60oojU4EKfVAHlxYf2kfFHi0",
 
     authDomain:
         "location-d10dc.firebaseapp.com",
@@ -39,25 +32,15 @@ const firebaseConfig = {
 };
 
 
-// ==========================================
-// INITIALIZE FIREBASE
-// ==========================================
-
 const app =
-    initializeApp(firebaseConfig);
+    initializeApp(
+        firebaseConfig
+    );
 
-
-// ==========================================
-// INITIALIZE FIRESTORE
-// ==========================================
 
 const db =
     getFirestore(app);
 
-
-// ==========================================
-// EXPORT FIRESTORE
-// ==========================================
 
 export {
     db
