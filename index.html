@@ -1,339 +1,518 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+    <title>Live Location Tracker</title>
 
-    <title>LiveTrack | 3 Person Tracking</title>
-
-
-    <!-- LEAFLET -->
-
+    <!-- Leaflet -->
     <link
         rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     >
 
-
-    <!-- CSS -->
-
-    <link
-        rel="stylesheet"
-        href="style.css"
-    >
-
+    <!-- App CSS -->
+    <link rel="stylesheet" href="style.css">
 </head>
-
 
 <body>
 
+<div class="app-shell">
 
-<header class="topbar">
+    <!-- =========================
+         SIDEBAR
+    ========================== -->
+    <aside class="sidebar">
 
-    <div class="logo">
-
-        📍 LiveTrack
-
-    </div>
-
-
-    <div class="connection-status">
-
-        <span
-            id="statusDot"
-            class="status-dot"
-        ></span>
-
-        <span id="statusText">
-            Not sharing
-        </span>
-
-    </div>
-
-</header>
-
-
-
-<main class="container">
-
-
-    <!-- =================================
-         USER PROFILE
-    ================================== -->
-
-    <section class="control-card">
-
-
-        <div class="user-profile">
-
-            <div
-                class="avatar"
-                id="avatar"
-            >
-                U
+        <div class="brand">
+            <div class="brand-icon">
+                <span>⌖</span>
             </div>
-
-
-            <div class="user-details">
-
-                <h2 id="userName">
-                    User
-                </h2>
-
-                <p>
-                    Live Location
-                </p>
-
-            </div>
-
-        </div>
-
-
-
-        <div class="control-buttons">
-
-            <button
-                id="startBtn"
-                class="btn btn-start"
-            >
-                📍 Start Sharing
-            </button>
-
-
-            <button
-                id="stopBtn"
-                class="btn btn-stop"
-                disabled
-            >
-                🛑 Stop Sharing
-            </button>
-
-        </div>
-
-    </section>
-
-
-
-    <!-- =================================
-         USER NAME
-    ================================== -->
-
-    <section class="name-card">
-
-        <div>
-
-            <h3>
-                Your Name
-            </h3>
-
-            <p>
-                Choose the name shown to other people.
-            </p>
-
-        </div>
-
-
-        <div class="name-input-area">
-
-            <input
-                type="text"
-                id="nameInput"
-                placeholder="Enter your name"
-                maxlength="20"
-            >
-
-            <button
-                id="saveNameBtn"
-                class="save-btn"
-            >
-                Save
-            </button>
-
-        </div>
-
-    </section>
-
-
-
-    <!-- =================================
-         OTHER USERS
-    ================================== -->
-
-    <section class="people-card">
-
-        <div class="section-title">
 
             <div>
+                <h1>LiveTrack</h1>
+                <p>Real-time location</p>
+            </div>
+        </div>
 
-                <h2>
-                    People
-                </h2>
 
-                <p>
-                    Live tracking members
-                </p>
+        <!-- USER STATUS -->
+        <div class="user-status-card">
 
+            <div class="status-top">
+                <div class="avatar" id="userAvatar">
+                    U
+                </div>
+
+                <div class="status-info">
+                    <strong id="sidebarUserName">
+                        Your Location
+                    </strong>
+
+                    <span class="status-indicator">
+                        <i id="statusDot"></i>
+                        <span id="statusText">Not sharing</span>
+                    </span>
+                </div>
             </div>
 
-
-            <div
-                id="peopleCount"
-                class="people-count"
+            <button
+                id="startSharing"
+                class="primary-btn"
             >
-                0 online
+                <span>📍</span>
+                Start Sharing
+            </button>
+
+            <button
+                id="stopSharing"
+                class="danger-btn"
+                style="display:none;"
+            >
+                <span>■</span>
+                Stop Sharing
+            </button>
+
+        </div>
+
+
+        <!-- PROFILE -->
+        <div class="sidebar-section">
+
+            <div class="section-title">
+                <span>YOUR PROFILE</span>
+            </div>
+
+            <div class="name-input-wrapper">
+
+                <label for="userName">
+                    Display name
+                </label>
+
+                <div class="input-row">
+
+                    <input
+                        type="text"
+                        id="userName"
+                        placeholder="Enter your name"
+                        maxlength="30"
+                    >
+
+                    <button id="saveName">
+                        Save
+                    </button>
+
+                </div>
+
             </div>
 
         </div>
 
 
+        <!-- PEOPLE -->
+        <div class="sidebar-section people-section">
+
+            <div class="section-heading">
+
+                <div class="section-title">
+                    <span>PEOPLE</span>
+                </div>
+
+                <span
+                    class="online-count"
+                    id="onlineCount"
+                >
+                    0 online
+                </span>
+
+            </div>
+
+
+            <div
+                class="people-list"
+                id="peopleList"
+            >
+
+                <div class="empty-people">
+
+                    <div class="empty-icon">
+                        👥
+                    </div>
+
+                    <strong>
+                        No one is sharing
+                    </strong>
+
+                    <span>
+                        Start sharing your location
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- PROXIMITY -->
         <div
-            id="peopleList"
-            class="people-list"
+            class="proximity-card"
+            id="proximityCard"
         >
 
-            <div class="empty-message">
-                No one is sharing their location.
+            <div class="proximity-icon">
+                ⚡
             </div>
-
-        </div>
-
-    </section>
-
-
-
-    <!-- =================================
-         LOCATION INFO
-    ================================== -->
-
-    <section class="location-grid">
-
-
-        <div class="info-card">
-
-            <div class="info-title">
-                Latitude
-            </div>
-
-            <div
-                id="latitude"
-                class="info-value"
-            >
-                --
-            </div>
-
-        </div>
-
-
-
-        <div class="info-card">
-
-            <div class="info-title">
-                Longitude
-            </div>
-
-            <div
-                id="longitude"
-                class="info-value"
-            >
-                --
-            </div>
-
-        </div>
-
-
-
-        <div class="info-card">
-
-            <div class="info-title">
-                Accuracy
-            </div>
-
-            <div
-                id="accuracy"
-                class="info-value"
-            >
-                --
-            </div>
-
-        </div>
-
-
-
-        <div class="info-card">
-
-            <div class="info-title">
-                Last Updated
-            </div>
-
-            <div
-                id="lastUpdated"
-                class="info-value"
-            >
-                --
-            </div>
-
-        </div>
-
-    </section>
-
-
-
-    <!-- =================================
-         MAP
-    ================================== -->
-
-    <section class="map-card">
-
-
-        <div class="map-header">
 
             <div>
-
-                <h2>
-                    Live Map
-                </h2>
+                <strong>1 km proximity alert</strong>
 
                 <p>
-                    Everyone currently sharing their location
+                    You'll be alerted when someone
+                    comes within 1 km.
+                </p>
+            </div>
+
+        </div>
+
+
+        <div class="sidebar-footer">
+            <span>LiveTrack</span>
+            <span>•</span>
+            <span>3-person tracking</span>
+        </div>
+
+    </aside>
+
+
+
+    <!-- =========================
+         MAIN CONTENT
+    ========================== -->
+    <main class="main-content">
+
+
+        <!-- TOP HEADER -->
+        <header class="top-header">
+
+            <div class="header-left">
+
+                <button
+                    id="mobileMenu"
+                    class="mobile-menu"
+                >
+                    ☰
+                </button>
+
+                <div>
+                    <h2>Live Map</h2>
+
+                    <p>
+                        Track your group in real time
+                    </p>
+                </div>
+
+            </div>
+
+
+            <div class="header-actions">
+
+                <div class="connection-status">
+
+                    <i id="headerStatusDot"></i>
+
+                    <span id="headerStatus">
+                        Offline
+                    </span>
+
+                </div>
+
+            </div>
+
+        </header>
+
+
+
+        <!-- MAP AREA -->
+        <section class="map-container">
+
+            <div
+                id="map"
+                class="map"
+            ></div>
+
+
+            <!-- MAP OVERLAY -->
+            <div class="map-overlay-top">
+
+                <div class="map-live-badge">
+
+                    <i></i>
+
+                    <span>
+                        LIVE
+                    </span>
+
+                </div>
+
+                <div class="map-info-badge">
+
+                    <span>
+                        👥
+                    </span>
+
+                    <span id="mapPeopleCount">
+                        0 people
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <!-- MAP CONTROLS -->
+            <div class="map-controls">
+
+                <button
+                    id="recenterBtn"
+                    title="Recenter on me"
+                >
+                    ◎
+                </button>
+
+                <button
+                    id="fullscreenBtn"
+                    title="Fullscreen"
+                >
+                    ⛶
+                </button>
+
+            </div>
+
+
+            <!-- MAP BOTTOM INFO -->
+            <div class="map-bottom-card">
+
+                <div class="map-location-icon">
+                    📍
+                </div>
+
+                <div class="map-location-info">
+
+                    <strong>
+                        Your current location
+                    </strong>
+
+                    <span id="mapLocationText">
+                        Waiting for GPS...
+                    </span>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- INFORMATION GRID -->
+        <section class="dashboard-grid">
+
+
+            <!-- GPS CARD -->
+            <div class="info-card">
+
+                <div class="info-card-header">
+
+                    <div class="info-card-icon gps-icon">
+                        📍
+                    </div>
+
+                    <div>
+                        <span>GPS STATUS</span>
+                        <strong id="gpsStatus">
+                            Waiting
+                        </strong>
+                    </div>
+
+                </div>
+
+
+                <div class="stat-value">
+                    <span id="latitude">
+                        —
+                    </span>
+                </div>
+
+                <div class="stat-label">
+                    Latitude
+                </div>
+
+            </div>
+
+
+
+            <!-- LONGITUDE -->
+            <div class="info-card">
+
+                <div class="info-card-header">
+
+                    <div class="info-card-icon">
+                        🌐
+                    </div>
+
+                    <div>
+                        <span>POSITION</span>
+                        <strong>
+                            Coordinates
+                        </strong>
+                    </div>
+
+                </div>
+
+
+                <div class="stat-value">
+                    <span id="longitude">
+                        —
+                    </span>
+                </div>
+
+                <div class="stat-label">
+                    Longitude
+                </div>
+
+            </div>
+
+
+
+            <!-- ACCURACY -->
+            <div class="info-card">
+
+                <div class="info-card-header">
+
+                    <div class="info-card-icon">
+                        🎯
+                    </div>
+
+                    <div>
+                        <span>GPS ACCURACY</span>
+                        <strong>
+                            Precision
+                        </strong>
+                    </div>
+
+                </div>
+
+
+                <div class="stat-value">
+
+                    <span id="accuracy">
+                        —
+                    </span>
+
+                    <small>
+                        m
+                    </small>
+
+                </div>
+
+                <div class="stat-label">
+                    Current GPS accuracy
+                </div>
+
+            </div>
+
+
+
+            <!-- LAST UPDATE -->
+            <div class="info-card">
+
+                <div class="info-card-header">
+
+                    <div class="info-card-icon">
+                        🕐
+                    </div>
+
+                    <div>
+                        <span>LAST UPDATE</span>
+                        <strong>
+                            Live
+                        </strong>
+                    </div>
+
+                </div>
+
+
+                <div class="stat-value time-value">
+
+                    <span id="lastUpdated">
+                        —
+                    </span>
+
+                </div>
+
+                <div class="stat-label">
+                    Latest location update
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- PROXIMITY ALERT -->
+        <section
+            class="alert-panel"
+            id="alertPanel"
+        >
+
+            <div class="alert-panel-icon">
+                ⚠
+            </div>
+
+            <div class="alert-panel-content">
+
+                <strong id="alertTitle">
+                    Proximity monitoring active
+                </strong>
+
+                <p id="alertMessage">
+                    You will receive an alert when
+                    another person comes within 1 km.
                 </p>
 
             </div>
 
-
-            <div class="live-label">
-
-                <span></span>
-
-                LIVE
-
-            </div>
-
-        </div>
+        </section>
 
 
-        <div id="map"></div>
+    </main>
 
-    </section>
+</div>
 
 
-</main>
+
+<!-- MOBILE SIDEBAR OVERLAY -->
+<div
+    id="sidebarOverlay"
+    class="sidebar-overlay"
+></div>
 
 
 
 <!-- LEAFLET -->
-
 <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
-</script>
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+></script>
 
-<script type="module" src="app.js"></script>
+
+<!-- APP -->
+<script
+    type="module"
+    src="app.js"
+></script>
 
 </body>
-
 </html>
